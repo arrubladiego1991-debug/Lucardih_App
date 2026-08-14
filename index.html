@@ -1,809 +1,134 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Lucardih - Control de Inventario y Ventas</title>
-    <!-- Tailwind CSS CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- FontAwesome Icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        brand: {
-                            50: '#f2f7f4',
-                            100: '#e1ede6',
-                            200: '#c4dcce',
-                            300: '#9bc2ab',
-                            500: '#4c8a68',
-                            700: '#2b5840',
-                            800: '#1F4031', // Verde Esmeralda Lucardih
-                            900: '#142c22',
-                        },
-                        goldCustom: '#D4AF37', // Dorado Isotipo Lucardih
-                    },
-                    fontFamily: {
-                        sans: ['Plus Jakarta Sans', 'sans-serif'],
-                    }
-                }
-            }
-        }
-    </script>
-    <style>
-        body {
-            font-family: 'Plus Jakarta Sans', sans-serif;
-            background-color: #f3f4f6;
-            -webkit-tap-highlight-color: transparent;
-        }
-        .hide-scrollbar::-webkit-scrollbar {
-            display: none;
-        }
-        .hide-scrollbar {
-            -ms-overflow-style: none;
-            scrollbar-width: none;
-        }
-    </style>
-</head>
-<body class="bg-slate-100 text-slate-800 antialiased selection:bg-brand-500 selection:text-white pb-24 md:pb-6">
-
-<!-- Header Principal -->
-<header class="bg-brand-800 text-white sticky top-0 z-30 shadow-md">
-    <div class="max-w-md mx-auto px-4 py-3 flex items-center justify-between">
-        <div class="flex items-center space-x-3">
-            <div class="w-10 h-10 rounded-full bg-brand-900 flex items-center justify-center border border-goldCustom shadow-inner p-1.5">
-                <!-- Isotipo Geométrico Dorado Lucardih -->
-                <svg viewBox="0 0 100 100" class="w-full h-full fill-goldCustom">
-                    <path d="M 35,30 L 68,30 L 78,42 L 58,42 L 68,54 L 85,54 L 75,42 L 88,30 L 35,30 Z" />
-                    <path d="M 25,65 L 45,38 L 58,54 L 45,54 L 38,65 L 75,65 L 85,77 L 15,77 Z" />
-                </svg>
-            </div>
-            <div>
-                <h1 class="font-extrabold text-lg leading-tight tracking-wider text-goldCustom">LUCARDIH</h1>
-                <p class="text-[11px] text-brand-200 font-medium tracking-wide">Gestión & Inventario</p>
-            </div>
-        </div>
-        <!-- Contador de Alertas de Stock -->
-        <button onclick="switchTab('inventory')" class="relative p-2 text-brand-200 hover:text-white transition">
-            <i class="fa-solid fa-bell text-xl"></i>
-            <span id="alertCounter" class="hidden absolute -top-1 -right-1 bg-red-600 text-white text-[10px] font-extrabold w-5 h-5 rounded-full flex items-center justify-center border-2 border-brand-800 animate-pulse">
-                0
-            </span>
-        </button>
-    </div>
-</header>
-
-<!-- Contenedor Principal (Optimizado para Celulares) -->
-<main class="max-w-md mx-auto px-4 pt-4">
-
-    <!-- Banner de Alerta de Stock Bajo -->
-    <div id="lowStockBanner" class="hidden mb-4 bg-red-50 border-l-4 border-red-500 p-3 rounded-r-xl shadow-sm">
-        <div class="flex items-center">
-            <div class="flex-shrink-0 text-red-500 mr-3">
-                <i class="fa-solid fa-triangle-exclamation text-xl"></i>
-            </div>
-            <div class="flex-1">
-                <h3 class="text-xs font-bold text-red-800 uppercase tracking-wider">¡Alerta de Stock Bajo!</h3>
-                <p id="lowStockSummary" class="text-xs text-red-700 mt-0.5">Hay insumos o productos por debajo del límite mínimo.</p>
-            </div>
-            <button onclick="switchTab('inventory')" class="text-xs font-bold text-red-700 underline ml-2">Ver</button>
-        </div>
-    </div>
-
-    <!-- PESTAÑA 1: INVENTARIO & STOCK -->
-    <section id="tab-inventory" class="tab-content">
-        <div class="flex items-center justify-between mb-4">
-            <div>
-                <h2 class="text-xl font-bold text-slate-800">Inventario Actual</h2>
-                <p class="text-xs text-slate-500">Empaques y café terminado</p>
-            </div>
-            <button onclick="openModal('modalItem')" class="bg-brand-800 hover:bg-brand-900 text-goldCustom text-xs font-semibold px-3 py-2 rounded-lg shadow flex items-center gap-1.5 transition">
-                <i class="fa-solid fa-plus"></i> Nuevo
-            </button>
-        </div>
-
-        <!-- Filtros de Categoría -->
-        <div class="flex gap-2 mb-4 overflow-x-auto hide-scrollbar py-1">
-            <button onclick="filterInventory('all')" id="cat-all" class="cat-btn bg-brand-800 text-goldCustom px-3.5 py-1.5 rounded-full text-xs font-semibold shadow-sm whitespace-nowrap">
-                Todos
-            </button>
-            <button onclick="filterInventory('Empaque')" id="cat-Empaque" class="cat-btn bg-white text-slate-600 border border-slate-200 px-3.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap">
-                📦 Empaques
-            </button>
-            <button onclick="filterInventory('Producto')" id="cat-Producto" class="cat-btn bg-white text-slate-600 border border-slate-200 px-3.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap">
-                ☕ Café & Drips
-            </button>
-            <button onclick="filterInventory('low')" id="cat-low" class="cat-btn bg-white text-red-600 border border-red-200 px-3.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap">
-                ⚠️ Solo Alertas
-            </button>
-        </div>
-
-        <!-- Lista de Productos -->
-        <div id="inventoryList" class="space-y-3"></div>
-    </section>
-
-    <!-- PESTAÑA 2: REGISTRAR VENTA -->
-    <section id="tab-sales" class="tab-content hidden">
-        <div class="mb-4">
-            <h2 class="text-xl font-bold text-slate-800">Registrar Venta</h2>
-            <p class="text-xs text-slate-500">Descuenta inventario y actualiza caja</p>
-        </div>
-
-        <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/80 mb-6">
-            <form id="saleForm" onsubmit="handleSaleSubmit(event)" class="space-y-4">
-                <div>
-                    <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Producto a Vender</label>
-                    <select id="saleProductSelect" required onchange="updateSalePriceDefault()" class="w-full bg-slate-50 border border-slate-300 text-slate-800 text-sm rounded-xl p-3 focus:ring-2 focus:ring-brand-500 focus:outline-none">
-                    </select>
-                </div>
-
-                <div class="grid grid-cols-2 gap-3">
-                    <div>
-                        <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Cantidad</label>
-                        <input type="number" id="saleQuantity" min="1" value="1" required oninput="calculateSaleTotal()" class="w-full bg-slate-50 border border-slate-300 text-slate-800 text-sm rounded-xl p-3 focus:ring-2 focus:ring-brand-500 focus:outline-none">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Precio Unit. ($)</label>
-                        <input type="number" id="saleUnitPrice" min="0" step="500" placeholder="0" required oninput="calculateSaleTotal()" class="w-full bg-slate-50 border border-slate-300 text-slate-800 text-sm rounded-xl p-3 focus:ring-2 focus:ring-brand-500 focus:outline-none">
-                    </div>
-                </div>
-
-                <div class="bg-brand-50 rounded-xl p-3 border border-brand-200 flex items-start space-x-2.5">
-                    <input type="checkbox" id="autoDeductPackaging" checked class="mt-0.5 h-4 w-4 text-brand-800 rounded border-slate-300 focus:ring-brand-500">
-                    <label for="autoDeductPackaging" class="text-xs text-brand-900 leading-tight">
-                        <strong>Descontar bolsa de empaque correspondiente</strong> de manera automática.
-                    </label>
-                </div>
-
-                <div class="bg-slate-50 rounded-xl p-3 flex justify-between items-center border border-slate-200">
-                    <span class="text-xs font-semibold text-slate-600">Total Venta:</span>
-                    <span id="saleTotalDisplay" class="text-lg font-extrabold text-brand-800">$0</span>
-                </div>
-
-                <div>
-                    <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Vendido por</label>
-                    <select id="saleVendor" class="w-full bg-slate-50 border border-slate-300 text-slate-800 text-sm rounded-xl p-3 focus:ring-2 focus:ring-brand-500 focus:outline-none">
-                        <option value="Diego">Diego</option>
-                        <option value="Hermano">Hermano</option>
-                        <option value="Lucardih">Lucardih (General)</option>
-                    </select>
-                </div>
-
-                <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 px-4 rounded-xl shadow-md transition flex items-center justify-center gap-2">
-                    <i class="fa-solid fa-cart-shopping"></i> Confirmar Venta
-                </button>
-            </form>
-        </div>
-
-        <div>
-            <h3 class="text-sm font-bold text-slate-700 mb-3 flex items-center gap-2">
-                <i class="fa-solid fa-clock-rotate-left text-brand-700"></i> Historial Reciente de Ventas
-            </h3>
-            <div id="salesHistoryList" class="space-y-2"></div>
-        </div>
-    </section>
-
-    <!-- PESTAÑA 3: REABASTECIMIENTO / RECEPTACIÓN -->
-    <section id="tab-purchases" class="tab-content hidden">
-        <div class="mb-4">
-            <h2 class="text-xl font-bold text-slate-800">Ingreso de Insumos</h2>
-            <p class="text-xs text-slate-500">Registra compras de empaques o tueste de café</p>
-        </div>
-
-        <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/80 mb-6">
-            <form id="purchaseForm" onsubmit="handlePurchaseSubmit(event)" class="space-y-4">
-                <div>
-                    <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Insumo / Producto a Ingresar</label>
-                    <select id="purchaseItemSelect" required class="w-full bg-slate-50 border border-slate-300 text-slate-800 text-sm rounded-xl p-3 focus:ring-2 focus:ring-brand-500 focus:outline-none">
-                    </select>
-                </div>
-
-                <div class="grid grid-cols-2 gap-3">
-                    <div>
-                        <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Cantidad Entrante</label>
-                        <input type="number" id="purchaseQuantity" min="1" value="10" required class="w-full bg-slate-50 border border-slate-300 text-slate-800 text-sm rounded-xl p-3 focus:ring-2 focus:ring-brand-500 focus:outline-none">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Costo Total ($)</label>
-                        <input type="number" id="purchaseCost" min="0" step="500" placeholder="0" class="w-full bg-slate-50 border border-slate-300 text-slate-800 text-sm rounded-xl p-3 focus:ring-2 focus:ring-brand-500 focus:outline-none">
-                    </div>
-                </div>
-
-                <div>
-                    <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Detalle / Proveedor (Opcional)</label>
-                    <input type="text" id="purchaseNotes" placeholder="Ej: Lote empaques o tueste semanal" class="w-full bg-slate-50 border border-slate-300 text-slate-800 text-sm rounded-xl p-3 focus:ring-2 focus:ring-brand-500 focus:outline-none">
-                </div>
-
-                <button type="submit" class="w-full bg-brand-800 hover:bg-brand-900 text-goldCustom font-bold py-3.5 px-4 rounded-xl shadow-md transition flex items-center justify-center gap-2">
-                    <i class="fa-solid fa-box-open"></i> Aumentar Stock
-                </button>
-            </form>
-        </div>
-
-        <div>
-            <h3 class="text-sm font-bold text-slate-700 mb-3 flex items-center gap-2">
-                <i class="fa-solid fa-list-check text-brand-700"></i> Entradas Recientes
-            </h3>
-            <div id="purchasesHistoryList" class="space-y-2"></div>
-        </div>
-    </section>
-
-    <!-- PESTAÑA 4: DEUDAS CAFÉ PERGAMINO -->
-    <section id="tab-debts" class="tab-content hidden">
-        <div class="flex items-center justify-between mb-4">
-            <div>
-                <h2 class="text-xl font-bold text-slate-800">Cuentas por Pagar</h2>
-                <p class="text-xs text-slate-500">Control de Café Pergamino fiado</p>
-            </div>
-            <button onclick="openModal('modalDebt')" class="bg-red-600 hover:bg-red-700 text-white text-xs font-semibold px-3 py-2 rounded-lg shadow flex items-center gap-1.5 transition">
-                <i class="fa-solid fa-plus"></i> Nueva Deuda
-            </button>
-        </div>
-
-        <div class="bg-gradient-to-r from-red-600 to-rose-700 rounded-2xl p-4 text-white shadow-md mb-5">
-            <span class="text-xs font-semibold uppercase tracking-wider text-red-100">Deuda Total Pendiente</span>
-            <div id="totalDebtDisplay" class="text-2xl font-extrabold mt-1">$0</div>
-            <p class="text-[11px] text-red-100 mt-1 opacity-90">Suma de saldos por pagar de pergamino fiado</p>
-        </div>
-
-        <div id="debtsList" class="space-y-3"></div>
-    </section>
-
-    <!-- PESTAÑA 5: BALANCE & COPIA DE SEGURIDAD -->
-    <section id="tab-summary" class="tab-content hidden">
-        <div class="mb-4">
-            <h2 class="text-xl font-bold text-slate-800">Resumen Financiero</h2>
-            <p class="text-xs text-slate-500">Métricas clave y respaldo de información</p>
-        </div>
-
-        <div class="grid grid-cols-2 gap-3 mb-5">
-            <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-                <div class="text-emerald-600 font-bold text-xs uppercase">Total Ventas</div>
-                <div id="summaryTotalSales" class="text-xl font-extrabold text-slate-800 mt-1">$0</div>
-            </div>
-            <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-                <div class="text-red-600 font-bold text-xs uppercase">Deudas Pergamino</div>
-                <div id="summaryTotalDebts" class="text-xl font-extrabold text-slate-800 mt-1">$0</div>
-            </div>
-        </div>
-
-        <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
-            <h3 class="font-bold text-sm text-slate-800 flex items-center gap-2">
-                <i class="fa-solid fa-database text-brand-700"></i> Copia de Seguridad
-            </h3>
-            <p class="text-xs text-slate-500 leading-relaxed">
-                Descarga tus datos para mantener un respaldo o compartirlos entre dispositivos.
-            </p>
-            <div class="grid grid-cols-2 gap-2 pt-1">
-                <button onclick="exportDataJSON()" class="w-full bg-brand-800 hover:bg-brand-900 text-goldCustom text-xs font-bold py-2.5 px-3 rounded-xl flex items-center justify-center gap-1.5">
-                    <i class="fa-solid fa-download"></i> Respaldar
-                </button>
-                <label class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold py-2.5 px-3 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer border border-slate-300 text-center">
-                    <i class="fa-solid fa-upload"></i> Restaurar
-                    <input type="file" id="importFile" onchange="importDataJSON(event)" accept=".json" class="hidden">
-                </label>
-            </div>
-            <button onclick="resetDataDefault()" class="w-full text-xs text-red-500 hover:text-red-700 font-medium pt-2 text-center block">
-                Reiniciar a valores por defecto
-            </button>
-        </div>
-    </section>
-
-</main>
-
-<!-- Barra de Navegación Inferior Móvil -->
-<nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 shadow-lg z-30">
-    <div class="max-w-md mx-auto grid grid-cols-5 h-16 px-1">
-        <button onclick="switchTab('inventory')" id="nav-inventory" class="nav-btn active text-brand-800 flex flex-col items-center justify-center gap-0.5">
-            <i class="fa-solid fa-boxes-stacked text-lg"></i>
-            <span class="text-[10px] font-bold">Stock</span>
-        </button>
-        <button onclick="switchTab('sales')" id="nav-sales" class="nav-btn text-slate-400 flex flex-col items-center justify-center gap-0.5">
-            <i class="fa-solid fa-cash-register text-lg"></i>
-            <span class="text-[10px] font-bold">Ventas</span>
-        </button>
-        <button onclick="switchTab('purchases')" id="nav-purchases" class="nav-btn text-slate-400 flex flex-col items-center justify-center gap-0.5">
-            <i class="fa-solid fa-truck-ramp-box text-lg"></i>
-            <span class="text-[10px] font-bold">Entradas</span>
-        </button>
-        <button onclick="switchTab('debts')" id="nav-debts" class="nav-btn text-slate-400 flex flex-col items-center justify-center gap-0.5">
-            <i class="fa-solid fa-file-invoice-dollar text-lg"></i>
-            <span class="text-[10px] font-bold">Deudas</span>
-        </button>
-        <button onclick="switchTab('summary')" id="nav-summary" class="nav-btn text-slate-400 flex flex-col items-center justify-center gap-0.5">
-            <i class="fa-solid fa-chart-pie text-lg"></i>
-            <span class="text-[10px] font-bold">Balance</span>
-        </button>
-    </div>
-</nav>
-
-<!-- MODAL: NUEVO PRODUCTO/INSUMO -->
-<div id="modalItem" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl">
-        <div class="flex justify-between items-center mb-4">
-            <h3 class="font-bold text-slate-800 text-lg">Agregar Insumo/Producto</h3>
-            <button onclick="closeModal('modalItem')" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
-        </div>
-        <form onsubmit="handleItemCreate(event)" class="space-y-3">
-            <div>
-                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Nombre</label>
-                <input type="text" id="newItemName" required placeholder="Ej: Bolsa 250g o Café 500g" class="w-full bg-slate-50 border border-slate-300 text-sm rounded-xl p-2.5 focus:ring-2 focus:ring-brand-500 focus:outline-none">
-            </div>
-            <div>
-                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Categoría</label>
-                <select id="newItemCategory" class="w-full bg-slate-50 border border-slate-300 text-sm rounded-xl p-2.5 focus:ring-2 focus:ring-brand-500 focus:outline-none">
-                    <option value="Empaque">Empaque (Bolsas, Drips vacíos)</option>
-                    <option value="Producto">Producto Terminado (Café, Drips)</option>
-                </select>
-            </div>
-            <div class="grid grid-cols-2 gap-2">
-                <div>
-                    <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Stock Inicial</label>
-                    <input type="number" id="newItemStock" min="0" value="0" required class="w-full bg-slate-50 border border-slate-300 text-sm rounded-xl p-2.5 focus:ring-2 focus:ring-brand-500 focus:outline-none">
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Stock Mínimo</label>
-                    <input type="number" id="newItemMin" min="0" value="10" required class="w-full bg-slate-50 border border-slate-300 text-sm rounded-xl p-2.5 focus:ring-2 focus:ring-brand-500 focus:outline-none">
-                </div>
-            </div>
-            <button type="submit" class="w-full bg-brand-800 hover:bg-brand-900 text-goldCustom font-bold py-3 rounded-xl mt-2 shadow">
-                Guardar Elemento
-            </button>
-        </form>
-    </div>
-</div>
-
-<!-- MODAL: NUEVA DEUDA -->
-<div id="modalDebt" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl">
-        <div class="flex justify-between items-center mb-4">
-            <h3 class="font-bold text-slate-800 text-lg">Nueva Cuenta por Pagar</h3>
-            <button onclick="closeModal('modalDebt')" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
-        </div>
-        <form onsubmit="handleDebtCreate(event)" class="space-y-3">
-            <div>
-                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Proveedor / Finca</label>
-                <input type="text" id="newDebtProvider" required placeholder="Ej: Finca Alto Bonito" class="w-full bg-slate-50 border border-slate-300 text-sm rounded-xl p-2.5 focus:ring-2 focus:ring-brand-500 focus:outline-none">
-            </div>
-            <div>
-                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Concepto</label>
-                <input type="text" id="newDebtConcept" value="Café Pergamino" required class="w-full bg-slate-50 border border-slate-300 text-sm rounded-xl p-2.5 focus:ring-2 focus:ring-brand-500 focus:outline-none">
-            </div>
-            <div class="grid grid-cols-2 gap-2">
-                <div>
-                    <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Valor Total ($)</label>
-                    <input type="number" id="newDebtTotal" min="0" step="1000" required placeholder="0" class="w-full bg-slate-50 border border-slate-300 text-sm rounded-xl p-2.5 focus:ring-2 focus:ring-brand-500 focus:outline-none">
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Abono Inicial ($)</label>
-                    <input type="number" id="newDebtAbono" min="0" step="1000" value="0" class="w-full bg-slate-50 border border-slate-300 text-sm rounded-xl p-2.5 focus:ring-2 focus:ring-brand-500 focus:outline-none">
-                </div>
-            </div>
-            <button type="submit" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-xl mt-2 shadow">
-                Registrar Cuenta
-            </button>
-        </form>
-    </div>
-</div>
-
-<!-- MODAL: REGISTRAR ABONO -->
-<div id="modalAbono" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl">
-        <div class="flex justify-between items-center mb-3">
-            <h3 class="font-bold text-slate-800 text-lg">Abonar a Deuda</h3>
-            <button onclick="closeModal('modalAbono')" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
-        </div>
-        <p id="abonoDebtTitle" class="text-xs text-slate-500 mb-3"></p>
-        <form onsubmit="handleAbonoSubmit(event)" class="space-y-3">
-            <input type="hidden" id="abonoDebtId">
-            <div>
-                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Monto del Abono ($)</label>
-                <input type="number" id="abonoAmount" min="1" step="1000" required placeholder="0" class="w-full bg-slate-50 border border-slate-300 text-sm rounded-xl p-2.5 focus:ring-2 focus:ring-brand-500 focus:outline-none">
-            </div>
-            <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl shadow">
-                Registrar Abono
-            </button>
-        </form>
-    </div>
-</div>
-
-<!-- LÓGICA JAVASCRIPT -->
 <script>
-    // Datos Iniciales de Lucardih
+    // Inicialización de Datos por Defecto
     const DEFAULT_DATA = {
         items: [
-            { id: '1', name: 'Bolsa 250g', category: 'Empaque', stock: 50, minStock: 10, defaultPrice: 0 },
-            { id: '2', name: 'Bolsa 500g', category: 'Empaque', stock: 40, minStock: 10, defaultPrice: 0 },
-            { id: '3', name: 'Bolsa 2.5kg', category: 'Empaque', stock: 15, minStock: 10, defaultPrice: 0 },
-            { id: '4', name: 'Bolsas para Drips', category: 'Empaque', stock: 100, minStock: 10, defaultPrice: 0 },
-            { id: '5', name: 'Café 250g', category: 'Producto', stock: 12, minStock: 3, defaultPrice: 25000, packagingMatch: 'Bolsa 250g' },
-            { id: '6', name: 'Café 500g', category: 'Producto', stock: 8, minStock: 3, defaultPrice: 45000, packagingMatch: 'Bolsa 500g' },
-            { id: '7', name: 'Café 2.5kg', category: 'Producto', stock: 5, minStock: 3, defaultPrice: 180000, packagingMatch: 'Bolsa 2.5kg' },
-            { id: '8', name: 'Drips (Unidad)', category: 'Producto', stock: 30, minStock: 3, defaultPrice: 6000, packagingMatch: 'Bolsas para Drips' }
+            { id: 1, name: 'Bolsa 2.5 kg (Materia Prima)', qty: 10, unit: 'unidades' },
+            { id: 2, name: 'Empaque Lucardih 500g', qty: 50, unit: 'unidades' },
+            { id: 3, name: 'Empaque Lucardih 250g', qty: 50, unit: 'unidades' }
         ],
         sales: [],
-        purchases: [],
-        debts: [
-            { id: 'd1', date: new Date().toISOString(), provider: 'Finca Alto Bonito', concept: 'Café Pergamino 2 Cargas', total: 1200000, abonos: 400000 }
-        ]
+        debts: []
     };
 
     let appData = JSON.parse(localStorage.getItem('lucardih_app_data')) || DEFAULT_DATA;
-    let activeInventoryFilter = 'all';
 
     function saveData() {
         localStorage.setItem('lucardih_app_data', JSON.stringify(appData));
         renderAll();
     }
 
-    function switchTab(tabName) {
-        document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
-        document.querySelectorAll('.nav-btn').forEach(el => {
-            el.classList.remove('text-brand-800', 'active');
-            el.classList.add('text-slate-400');
-        });
-
-        document.getElementById(`tab-${tabName}`).classList.remove('hidden');
-        const navBtn = document.getElementById(`nav-${tabName}`);
-        if(navBtn) {
-            navBtn.classList.add('text-brand-800', 'active');
-            navBtn.classList.remove('text-slate-400');
-        }
-    }
-
     function renderAll() {
         renderInventory();
-        renderLowStockAlerts();
-        renderSalesSelect();
-        renderSalesHistory();
-        renderPurchasesSelect();
-        renderPurchasesHistory();
+        renderSales();
         renderDebts();
         renderSummary();
     }
 
-    function renderInventory() {
-        const list = document.getElementById('inventoryList');
-        list.innerHTML = '';
-
-        let filtered = appData.items;
-        if (activeInventoryFilter === 'Empaque') filtered = appData.items.filter(i => i.category === 'Empaque');
-        if (activeInventoryFilter === 'Producto') filtered = appData.items.filter(i => i.category === 'Producto');
-        if (activeInventoryFilter === 'low') filtered = appData.items.filter(i => i.stock <= i.minStock);
-
-        if (filtered.length === 0) {
-            list.innerHTML = `<p class="text-center text-xs text-slate-400 py-6">No hay elementos en esta categoría.</p>`;
-            return;
+    // --- LÓGICA DE FRACCIONAMIENTO Y BOLSA DE CONSUMO ---
+    function processConsumableBag(weightInKg) {
+        // Buscar o crear el ítem 'Bolsa de Consumo 2.5 kg'
+        let consumableItem = appData.items.find(item => item.name === 'Bolsa de Consumo 2.5 kg');
+        
+        if (!consumableItem) {
+            consumableItem = {
+                id: Date.now(),
+                name: 'Bolsa de Consumo 2.5 kg',
+                qty: 2.5, // Empieza con 2.5 kg completos
+                unit: 'kg'
+            };
+            appData.items.push(consumableItem);
         }
 
-        filtered.forEach(item => {
-            const isLow = item.stock <= item.minStock;
-            const card = document.createElement('div');
-            card.className = `bg-white rounded-2xl p-4 border shadow-sm flex items-center justify-between transition ${
-                isLow ? 'border-red-300 bg-red-50/40' : 'border-slate-200/80'
-            }`;
-
-            card.innerHTML = `
-                <div class="flex items-center space-x-3">
-                    <div class="w-10 h-10 rounded-xl flex items-center justify-center font-bold ${
-                        item.category === 'Empaque' ? 'bg-amber-100 text-amber-800' : 'bg-brand-100 text-brand-800'
-                    }">
-                        ${item.category === 'Empaque' ? '📦' : '☕'}
-                    </div>
-                    <div>
-                        <h4 class="font-bold text-sm text-slate-800 flex items-center gap-1.5">
-                            ${item.name}
-                            ${isLow ? '<span class="bg-red-100 text-red-700 text-[10px] font-extrabold px-2 py-0.5 rounded-full border border-red-200">¡BAJO!</span>' : ''}
-                        </h4>
-                        <p class="text-xs text-slate-500">Mínimo: <strong>${item.minStock}</strong> ${item.category === 'Empaque' ? 'bolsas' : 'unid.'}</p>
-                    </div>
-                </div>
-                <div class="flex items-center space-x-2">
-                    <button onclick="quickStockAdjust('${item.id}', -1)" class="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm flex items-center justify-center">-</button>
-                    <span class="font-extrabold text-base min-w-[28px] text-center ${isLow ? 'text-red-600' : 'text-slate-800'}">${item.stock}</span>
-                    <button onclick="quickStockAdjust('${item.id}', 1)" class="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm flex items-center justify-center">+</button>
-                </div>
-            `;
-            list.appendChild(card);
-        });
-    }
-
-    function filterInventory(cat) {
-        activeInventoryFilter = cat;
-        document.querySelectorAll('.cat-btn').forEach(b => {
-            b.classList.remove('bg-brand-800', 'text-goldCustom', 'font-semibold');
-            b.classList.add('bg-white', 'text-slate-600');
-        });
-        const selectedBtn = document.getElementById(`cat-${cat}`);
-        if (selectedBtn) {
-            selectedBtn.classList.remove('bg-white', 'text-slate-600');
-            selectedBtn.classList.add('bg-brand-800', 'text-goldCustom', 'font-semibold');
-        }
-        renderInventory();
-    }
-
-    function quickStockAdjust(id, delta) {
-        const item = appData.items.find(i => i.id === id);
-        if (item) {
-            item.stock = Math.max(0, item.stock + delta);
-            saveData();
-        }
-    }
-
-    function renderLowStockAlerts() {
-        const lowItems = appData.items.filter(i => i.stock <= i.minStock);
-        const banner = document.getElementById('lowStockBanner');
-        const counter = document.getElementById('alertCounter');
-
-        if (lowItems.length > 0) {
-            banner.classList.remove('hidden');
-            counter.classList.remove('hidden');
-            counter.innerText = lowItems.length;
-            document.getElementById('lowStockSummary').innerText = `${lowItems.map(i => i.name).join(', ')} están por debajo del mínimo.`;
-        } else {
-            banner.classList.add('hidden');
-            counter.classList.add('hidden');
-        }
-    }
-
-    function renderSalesSelect() {
-        const select = document.getElementById('saleProductSelect');
-        select.innerHTML = '';
-        const products = appData.items.filter(i => i.category === 'Producto');
-        products.forEach(p => {
-            select.innerHTML += `<option value="${p.name}">${p.name} (Stock: ${p.stock})</option>`;
-        });
-        updateSalePriceDefault();
-    }
-
-    function updateSalePriceDefault() {
-        const prodName = document.getElementById('saleProductSelect').value;
-        const prod = appData.items.find(i => i.name === prodName);
-        if (prod && prod.defaultPrice) {
-            document.getElementById('saleUnitPrice').value = prod.defaultPrice;
-        } else {
-            document.getElementById('saleUnitPrice').value = '';
-        }
-        calculateSaleTotal();
-    }
-
-    function calculateSaleTotal() {
-        const qty = parseFloat(document.getElementById('saleQuantity').value) || 0;
-        const price = parseFloat(document.getElementById('saleUnitPrice').value) || 0;
-        const total = qty * price;
-        document.getElementById('saleTotalDisplay').innerText = '$' + total.toLocaleString('es-CO');
-    }
-
-    function handleSaleSubmit(e) {
-        e.preventDefault();
-        const prodName = document.getElementById('saleProductSelect').value;
-        const qty = parseInt(document.getElementById('saleQuantity').value);
-        const unitPrice = parseFloat(document.getElementById('saleUnitPrice').value);
-        const vendor = document.getElementById('saleVendor').value;
-        const deductPackaging = document.getElementById('autoDeductPackaging').checked;
-
-        const product = appData.items.find(i => i.name === prodName);
-        if (!product) return;
-
-        product.stock = Math.max(0, product.stock - qty);
-
-        if (deductPackaging && product.packagingMatch) {
-            const packagingItem = appData.items.find(i => i.name === product.packagingMatch);
-            if (packagingItem) {
-                packagingItem.stock = Math.max(0, packagingItem.stock - qty);
+        // Si los kilos actuales no alcanzan para el descuento, toma una bolsa nueva de 2.5 kg del stock principal
+        if (consumableItem.qty < weightInKg) {
+            let mainBag = appData.items.find(item => item.name.includes('2.5 kg') && item.id !== consumableItem.id);
+            if (mainBag && mainBag.qty > 0) {
+                mainBag.qty -= 1;
+                consumableItem.qty += 2.5; // Agrega 2.5 kg de la nueva bolsa
             }
         }
 
-        appData.sales.unshift({
-            id: 's_' + Date.now(),
-            date: new Date().toISOString(),
-            item: prodName,
-            quantity: qty,
-            unitPrice: unitPrice,
-            total: qty * unitPrice,
-            vendor: vendor
-        });
+        // Descontar el peso fraccionado (ej: 0.5 kg para libra)
+        consumableItem.qty = Math.max(0, parseFloat((consumableItem.qty - weightInKg).toFixed(2)));
+    }
+
+    // --- GESTIÓN DE VENTAS ---
+    function addSale(description, total, weightInKg = 0) {
+        const newSale = {
+            id: Date.now(),
+            date: new Date().toLocaleDateString('es-CO'),
+            description: description,
+            total: parseFloat(total)
+        };
+        appData.sales.unshift(newSale);
+
+        // Si la venta no es de bolsa de 2.5 kg completa y tiene un peso especificado, descuenta de la Bolsa de Consumo
+        if (weightInKg > 0 && weightInKg < 2.5) {
+            processConsumableBag(weightInKg);
+        }
 
         saveData();
-        alert('✅ ¡Venta registrada exitosamente!');
-        document.getElementById('saleQuantity').value = 1;
-        calculateSaleTotal();
     }
 
-    function renderSalesHistory() {
-        const list = document.getElementById('salesHistoryList');
-        list.innerHTML = '';
-        if (appData.sales.length === 0) {
-            list.innerHTML = `<p class="text-xs text-slate-400 py-3 text-center">No hay ventas registradas.</p>`;
-            return;
-        }
+    // --- GESTIÓN Y EDICIÓN DE CUENTAS POR PAGAR ---
+    function editDebt(id) {
+        const debt = appData.debts.find(d => d.id === id);
+        if (!debt) return;
 
-        appData.sales.slice(0, 5).forEach(s => {
-            const dateStr = new Date(s.date).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
-            list.innerHTML += `
-                <div class="bg-white p-3 rounded-xl border border-slate-200/80 flex justify-between items-center text-xs">
-                    <div>
-                        <span class="font-bold text-slate-800">${s.item}</span> x${s.quantity}
-                        <div class="text-[10px] text-slate-400">${dateStr} • Por: ${s.vendor}</div>
-                    </div>
-                    <span class="font-extrabold text-emerald-600 text-sm">$${s.total.toLocaleString('es-CO')}</span>
-                </div>
-            `;
-        });
-    }
+        const newPerson = prompt('Editar Nombre/Proveedor (Ej: Fer, Insumos):', debt.person || 'Fer');
+        if (newPerson === null) return;
 
-    function renderPurchasesSelect() {
-        const select = document.getElementById('purchaseItemSelect');
-        select.innerHTML = '';
-        appData.items.forEach(i => {
-            select.innerHTML += `<option value="${i.name}">${i.name} (${i.category})</option>`;
-        });
-    }
+        const newConcept = prompt('Editar Concepto:', debt.concept);
+        if (newConcept === null) return;
 
-    function handlePurchaseSubmit(e) {
-        e.preventDefault();
-        const itemName = document.getElementById('purchaseItemSelect').value;
-        const qty = parseInt(document.getElementById('purchaseQuantity').value);
-        const cost = parseFloat(document.getElementById('purchaseCost').value) || 0;
-        const notes = document.getElementById('purchaseNotes').value;
+        const newTotal = prompt('Editar Valor Total ($):', debt.total);
+        if (newTotal === null) return;
 
-        const item = appData.items.find(i => i.name === itemName);
-        if (item) {
-            item.stock += qty;
-        }
+        const newAbonos = prompt('Editar Abonos Realizados ($):', debt.abonos);
+        if (newAbonos === null) return;
 
-        appData.purchases.unshift({
-            id: 'p_' + Date.now(),
-            date: new Date().toISOString(),
-            item: itemName,
-            quantity: qty,
-            cost: cost,
-            notes: notes
-        });
+        debt.person = newPerson.trim() || 'Fer';
+        debt.concept = newConcept.trim();
+        debt.total = parseFloat(newTotal) || 0;
+        debt.abonos = parseFloat(newAbonos) || 0;
 
         saveData();
-        alert(`✅ Stock de ${itemName} aumentado en +${qty}.`);
-        document.getElementById('purchaseNotes').value = '';
     }
 
-    function renderPurchasesHistory() {
-        const list = document.getElementById('purchasesHistoryList');
-        list.innerHTML = '';
-        if (appData.purchases.length === 0) {
-            list.innerHTML = `<p class="text-xs text-slate-400 py-3 text-center">No hay entradas registradas.</p>`;
-            return;
-        }
-
-        appData.purchases.slice(0, 5).forEach(p => {
-            const dateStr = new Date(p.date).toLocaleDateString('es-CO', { day: '2-digit', month: 'short' });
-            list.innerHTML += `
-                <div class="bg-white p-3 rounded-xl border border-slate-200/80 flex justify-between items-center text-xs">
-                    <div>
-                        <span class="font-bold text-slate-800">+${p.quantity} ${p.item}</span>
-                        <div class="text-[10px] text-slate-400">${dateStr} ${p.notes ? '• ' + p.notes : ''}</div>
-                    </div>
-                    <span class="font-bold text-slate-700">${p.cost > 0 ? '$' + p.cost.toLocaleString('es-CO') : 'Sin costo'}</span>
+    // --- RENDERIZADO Y EXPORTACIÓN ---
+    function renderInventory() {
+        const container = document.getElementById('inventoryList');
+        if (!container) return;
+        container.innerHTML = appData.items.map(item => `
+            <div class="flex justify-between items-center p-3 bg-stone-50 rounded-lg border border-stone-200 mb-2">
+                <div>
+                    <p class="font-bold text-stone-800">${item.name}</p>
+                    <p class="text-sm text-stone-500">Disponible: ${item.qty} ${item.unit}</p>
                 </div>
-            `;
-        });
+                <button onclick="deleteItem(${item.id})" class="text-red-600 hover:text-red-800 text-sm font-semibold">Eliminar</button>
+            </div>
+        `).join('');
     }
 
     function renderDebts() {
-        const list = document.getElementById('debtsList');
-        list.innerHTML = '';
-        let totalDebtVal = 0;
-
-        if (appData.debts.length === 0) {
-            list.innerHTML = `<p class="text-xs text-slate-400 py-6 text-center">No hay cuentas por pagar registradas.</p>`;
-        }
-
-        appData.debts.forEach(d => {
-            const saldo = d.total - d.abonos;
-            totalDebtVal += saldo;
-            const isPaid = saldo <= 0;
-
-            list.innerHTML += `
-                <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-2">
-                    <div class="flex justify-between items-start">
-                        <div>
-                            <h4 class="font-bold text-sm text-slate-800">${d.provider}</h4>
-                            <p class="text-xs text-slate-500">${d.concept}</p>
-                        </div>
-                        <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${isPaid ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}">
-                            ${isPaid ? 'PAGADO' : 'PENDIENTE'}
-                        </span>
+        const container = document.getElementById('debtsList');
+        if (!container) return;
+        container.innerHTML = appData.debts.map(d => {
+            const pending = Math.max(0, d.total - d.abonos);
+            return `
+                <div class="p-3 bg-stone-50 rounded-lg border border-stone-200 mb-2 flex justify-between items-center">
+                    <div>
+                        <span class="text-xs font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800">${d.person || 'Fer'}</span>
+                        <p class="font-bold text-stone-800 mt-1">${d.concept}</p>
+                        <p class="text-xs text-stone-500">Total: $${d.total.toLocaleString('es-CO')} | Abono: $${d.abonos.toLocaleString('es-CO')}</p>
+                        <p class="text-sm font-bold text-red-600">Pendiente: $${pending.toLocaleString('es-CO')}</p>
                     </div>
-                    <div class="bg-slate-50 p-2.5 rounded-xl grid grid-cols-3 text-center text-xs">
-                        <div>
-                            <span class="text-[10px] text-slate-400 block uppercase">Total</span>
-                            <span class="font-semibold">$${d.total.toLocaleString('es-CO')}</span>
-                        </div>
-                        <div>
-                            <span class="text-[10px] text-slate-400 block uppercase">Abonos</span>
-                            <span class="font-semibold text-emerald-600">$${d.abonos.toLocaleString('es-CO')}</span>
-                        </div>
-                        <div>
-                            <span class="text-[10px] text-slate-400 block uppercase">Saldo</span>
-                            <span class="font-extrabold text-red-600">$${saldo.toLocaleString('es-CO')}</span>
-                        </div>
+                    <div class="flex gap-2">
+                        <button onclick="editDebt(${d.id})" class="text-blue-600 hover:text-blue-800 text-xs font-bold border border-blue-200 px-2 py-1 rounded">✏️ Editar</button>
                     </div>
-                    ${!isPaid ? `
-                        <button onclick="openAbonoModal('${d.id}', '${d.provider}', ${saldo})" class="w-full bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold py-2 rounded-xl transition">
-                            + Registrar Abono
-                        </button>
-                    ` : ''}
                 </div>
             `;
-        });
-
-        document.getElementById('totalDebtDisplay').innerText = '$' + totalDebtVal.toLocaleString('es-CO');
-    }
-
-    function handleDebtCreate(e) {
-        e.preventDefault();
-        const provider = document.getElementById('newDebtProvider').value;
-        const concept = document.getElementById('newDebtConcept').value;
-        const total = parseFloat(document.getElementById('newDebtTotal').value) || 0;
-        const abono = parseFloat(document.getElementById('newDebtAbono').value) || 0;
-
-        appData.debts.unshift({
-            id: 'd_' + Date.now(),
-            date: new Date().toISOString(),
-            provider: provider,
-            concept: concept,
-            total: total,
-            abonos: abono
-        });
-
-        saveData();
-        closeModal('modalDebt');
-        document.getElementById('newDebtProvider').value = '';
-        document.getElementById('newDebtTotal').value = '';
-    }
-
-    function openAbonoModal(id, provider, currentSaldo) {
-        document.getElementById('abonoDebtId').value = id;
-        document.getElementById('abonoDebtTitle').innerText = `Cuenta de ${provider} (Saldo: $${currentSaldo.toLocaleString('es-CO')})`;
-        document.getElementById('abonoAmount').value = '';
-        openModal('modalAbono');
-    }
-
-    function handleAbonoSubmit(e) {
-        e.preventDefault();
-        const id = document.getElementById('abonoDebtId').value;
-        const amount = parseFloat(document.getElementById('abonoAmount').value) || 0;
-
-        const debt = appData.debts.find(d => d.id === id);
-        if (debt) {
-            debt.abonos += amount;
-            saveData();
-            closeModal('modalAbono');
-        }
-    }
-
-    function handleItemCreate(e) {
-        e.preventDefault();
-        const name = document.getElementById('newItemName').value;
-        const category = document.getElementById('newItemCategory').value;
-        const stock = parseInt(document.getElementById('newItemStock').value) || 0;
-        const minStock = parseInt(document.getElementById('newItemMin').value) || 10;
-
-        appData.items.push({
-            id: 'i_' + Date.now(),
-            name: name,
-            category: category,
-            stock: stock,
-            minStock: minStock,
-            defaultPrice: category === 'Producto' ? 25000 : 0
-        });
-
-        saveData();
-        closeModal('modalItem');
-        document.getElementById('newItemName').value = '';
+        }).join('');
     }
 
     function renderSummary() {
