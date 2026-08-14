@@ -1,186 +1,309 @@
-<script>
-    // Inicialización de Datos por Defecto
-    const DEFAULT_DATA = {
-        items: [
-            { id: 1, name: 'Bolsa 2.5 kg (Materia Prima)', qty: 10, unit: 'unidades' },
-            { id: 2, name: 'Empaque Lucardih 500g', qty: 50, unit: 'unidades' },
-            { id: 3, name: 'Empaque Lucardih 250g', qty: 50, unit: 'unidades' }
-        ],
-        sales: [],
-        debts: []
-    };
-
-    let appData = JSON.parse(localStorage.getItem('lucardih_app_data')) || DEFAULT_DATA;
-
-    function saveData() {
-        localStorage.setItem('lucardih_app_data', JSON.stringify(appData));
-        renderAll();
-    }
-
-    function renderAll() {
-        renderInventory();
-        renderSales();
-        renderDebts();
-        renderSummary();
-    }
-
-    // --- LÓGICA DE FRACCIONAMIENTO Y BOLSA DE CONSUMO ---
-    function processConsumableBag(weightInKg) {
-        // Buscar o crear el ítem 'Bolsa de Consumo 2.5 kg'
-        let consumableItem = appData.items.find(item => item.name === 'Bolsa de Consumo 2.5 kg');
-        
-        if (!consumableItem) {
-            consumableItem = {
-                id: Date.now(),
-                name: 'Bolsa de Consumo 2.5 kg',
-                qty: 2.5, // Empieza con 2.5 kg completos
-                unit: 'kg'
-            };
-            appData.items.push(consumableItem);
-        }
-
-        // Si los kilos actuales no alcanzan para el descuento, toma una bolsa nueva de 2.5 kg del stock principal
-        if (consumableItem.qty < weightInKg) {
-            let mainBag = appData.items.find(item => item.name.includes('2.5 kg') && item.id !== consumableItem.id);
-            if (mainBag && mainBag.qty > 0) {
-                mainBag.qty -= 1;
-                consumableItem.qty += 2.5; // Agrega 2.5 kg de la nueva bolsa
-            }
-        }
-
-        // Descontar el peso fraccionado (ej: 0.5 kg para libra)
-        consumableItem.qty = Math.max(0, parseFloat((consumableItem.qty - weightInKg).toFixed(2)));
-    }
-
-    // --- GESTIÓN DE VENTAS ---
-    function addSale(description, total, weightInKg = 0) {
-        const newSale = {
-            id: Date.now(),
-            date: new Date().toLocaleDateString('es-CO'),
-            description: description,
-            total: parseFloat(total)
-        };
-        appData.sales.unshift(newSale);
-
-        // Si la venta no es de bolsa de 2.5 kg completa y tiene un peso especificado, descuenta de la Bolsa de Consumo
-        if (weightInKg > 0 && weightInKg < 2.5) {
-            processConsumableBag(weightInKg);
-        }
-
-        saveData();
-    }
-
-    // --- GESTIÓN Y EDICIÓN DE CUENTAS POR PAGAR ---
-    function editDebt(id) {
-        const debt = appData.debts.find(d => d.id === id);
-        if (!debt) return;
-
-        const newPerson = prompt('Editar Nombre/Proveedor (Ej: Fer, Insumos):', debt.person || 'Fer');
-        if (newPerson === null) return;
-
-        const newConcept = prompt('Editar Concepto:', debt.concept);
-        if (newConcept === null) return;
-
-        const newTotal = prompt('Editar Valor Total ($):', debt.total);
-        if (newTotal === null) return;
-
-        const newAbonos = prompt('Editar Abonos Realizados ($):', debt.abonos);
-        if (newAbonos === null) return;
-
-        debt.person = newPerson.trim() || 'Fer';
-        debt.concept = newConcept.trim();
-        debt.total = parseFloat(newTotal) || 0;
-        debt.abonos = parseFloat(newAbonos) || 0;
-
-        saveData();
-    }
-
-    // --- RENDERIZADO Y EXPORTACIÓN ---
-    function renderInventory() {
-        const container = document.getElementById('inventoryList');
-        if (!container) return;
-        container.innerHTML = appData.items.map(item => `
-            <div class="flex justify-between items-center p-3 bg-stone-50 rounded-lg border border-stone-200 mb-2">
-                <div>
-                    <p class="font-bold text-stone-800">${item.name}</p>
-                    <p class="text-sm text-stone-500">Disponible: ${item.qty} ${item.unit}</p>
-                </div>
-                <button onclick="deleteItem(${item.id})" class="text-red-600 hover:text-red-800 text-sm font-semibold">Eliminar</button>
-            </div>
-        `).join('');
-    }
-
-    function renderDebts() {
-        const container = document.getElementById('debtsList');
-        if (!container) return;
-        container.innerHTML = appData.debts.map(d => {
-            const pending = Math.max(0, d.total - d.abonos);
-            return `
-                <div class="p-3 bg-stone-50 rounded-lg border border-stone-200 mb-2 flex justify-between items-center">
-                    <div>
-                        <span class="text-xs font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800">${d.person || 'Fer'}</span>
-                        <p class="font-bold text-stone-800 mt-1">${d.concept}</p>
-                        <p class="text-xs text-stone-500">Total: $${d.total.toLocaleString('es-CO')} | Abono: $${d.abonos.toLocaleString('es-CO')}</p>
-                        <p class="text-sm font-bold text-red-600">Pendiente: $${pending.toLocaleString('es-CO')}</p>
-                    </div>
-                    <div class="flex gap-2">
-                        <button onclick="editDebt(${d.id})" class="text-blue-600 hover:text-blue-800 text-xs font-bold border border-blue-200 px-2 py-1 rounded">✏️ Editar</button>
-                    </div>
-                </div>
-            `;
-        }).join('');
-    }
-
-    function renderSummary() {
-        const salesTotal = appData.sales.reduce((acc, s) => acc + (s.total || 0), 0);
-        const debtsTotal = appData.debts.reduce((acc, d) => acc + Math.max(0, d.total - d.abonos), 0);
-
-        document.getElementById('summaryTotalSales').innerText = '$' + salesTotal.toLocaleString('es-CO');
-        document.getElementById('summaryTotalDebts').innerText = '$' + debtsTotal.toLocaleString('es-CO');
-    }
-
-    function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
-    function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
-
-    function exportDataJSON() {
-        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(appData, null, 2));
-        const downloadAnchor = document.createElement('a');
-        downloadAnchor.setAttribute("href", dataStr);
-        downloadAnchor.setAttribute("download", `Lucardih_Backup_${new Date().toISOString().slice(0,10)}.json`);
-        document.body.appendChild(downloadAnchor);
-        downloadAnchor.click();
-        downloadAnchor.remove();
-    }
-
-    function importDataJSON(e) {
-        const fileReader = new FileReader();
-        fileReader.onload = function (event) {
-            try {
-                const imported = JSON.parse(event.target.result);
-                if (imported && imported.items) {
-                    appData = imported;
-                    saveData();
-                    alert('✅ Copia de seguridad restaurada con éxito.');
-                } else {
-                    alert('❌ El archivo no tiene el formato correcto.');
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Lucardih - Control de Inventario y Ventas</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        coffee: {
+                            50: '#fdf8f6',
+                            100: '#f2e8e5',
+                            500: '#8c5946',
+                            700: '#5c3a2e',
+                            900: '#36211a',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Plus Jakarta Sans', 'sans-serif'],
+                    }
                 }
-            } catch (err) {
-                alert('❌ Error al leer el archivo JSON.');
             }
-        };
-        if (e.target.files[0]) fileReader.readAsText(e.target.files[0]);
-    }
+        }
+    </script>
+</head>
+<body class="bg-stone-100 font-sans text-stone-800 pb-20">
 
-    function resetDataDefault() {
-        if (confirm('⚠️ ¿Estás seguro de reiniciar la app con los datos de fábrica?')) {
-            appData = DEFAULT_DATA;
+    <!-- Header -->
+    <header class="bg-coffee-900 text-white p-4 shadow-md sticky top-0 z-40">
+        <div class="max-w-md mx-auto flex justify-between items-center">
+            <div class="flex items-center gap-2">
+                <i class="fa-solid font-bold fa-mug-hot text-amber-500 text-xl"></i>
+                <h1 class="font-bold text-xl tracking-wide">Lucardih</h1>
+            </div>
+            <span class="text-xs bg-amber-500/20 text-amber-300 px-2 py-1 rounded-full border border-amber-500/30">v2.0</span>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="max-w-md mx-auto p-4 space-y-6">
+
+        <!-- Resumen de Métricas -->
+        <section class="grid grid-cols-2 gap-3">
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-stone-200/80">
+                <p class="text-xs font-semibold text-stone-500 uppercase">Ventas Totales</p>
+                <p id="summaryTotalSales" class="text-xl font-extrabold text-emerald-600 mt-1">$0</p>
+            </div>
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-stone-200/80">
+                <p class="text-xs font-semibold text-stone-500 uppercase">Por Cobrar</p>
+                <p id="summaryTotalDebts" class="text-xl font-extrabold text-amber-600 mt-1">$0</p>
+            </div>
+        </section>
+
+        <!-- Pestañas de Navegación Secundarias -->
+        <section class="bg-white rounded-2xl p-4 shadow-sm border border-stone-200/80">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="font-bold text-lg text-stone-800">Inventario</h2>
+                <button onclick="openModal('modalItem')" class="bg-coffee-700 text-white text-xs px-3 py-2 rounded-xl font-semibold hover:bg-coffee-900 transition shadow-sm">
+                    <i class="fa-solid fa-plus mr-1"></i> Nuevo Ítem
+                </button>
+            </div>
+            <div id="inventoryList" class="space-y-2">
+                <!-- Se llena con JS -->
+            </div>
+        </section>
+
+        <!-- Cuentas por Pagar / Cobrar -->
+        <section class="bg-white rounded-2xl p-4 shadow-sm border border-stone-200/80">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="font-bold text-lg text-stone-800">Cuentas Pendientes</h2>
+                <button onclick="openModal('modalDebt')" class="bg-coffee-700 text-white text-xs px-3 py-2 rounded-xl font-semibold hover:bg-coffee-900 transition shadow-sm">
+                    <i class="fa-solid fa-plus mr-1"></i> Registrar
+                </button>
+            </div>
+            <div id="debtsList" class="space-y-2">
+                <!-- Se llena con JS -->
+            </div>
+        </section>
+
+        <!-- Opciones de Respaldo -->
+        <section class="bg-stone-200/60 rounded-2xl p-4 text-center space-y-3">
+            <p class="text-xs text-stone-600 font-semibold">Copia de Seguridad</p>
+            <div class="flex justify-center gap-2">
+                <button onclick="exportDataJSON()" class="bg-white text-stone-700 border border-stone-300 text-xs px-3 py-2 rounded-xl font-semibold">
+                    <i class="fa-solid fa-download mr-1"></i> Exportar
+                </button>
+                <label class="bg-white text-stone-700 border border-stone-300 text-xs px-3 py-2 rounded-xl font-semibold cursor-pointer">
+                    <i class="fa-solid fa-upload mr-1"></i> Importar
+                    <input type="file" onchange="importDataJSON(event)" class="hidden" accept=".json">
+                </label>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Modales de Registro -->
+    <div id="modalItem" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl p-5 w-full max-w-sm space-y-4">
+            <h3 class="font-bold text-lg text-stone-800">Agregar al Inventario</h3>
+            <input type="text" id="newItemName" placeholder="Nombre del producto o insumo" class="w-full p-3 border border-stone-300 rounded-xl text-sm focus:outline-coffee-500">
+            <input type="number" id="newItemQty" placeholder="Cantidad inicial" class="w-full p-3 border border-stone-300 rounded-xl text-sm focus:outline-coffee-500">
+            <input type="text" id="newItemUnit" placeholder="Unidad (ej: bolsas, kg, unidades)" class="w-full p-3 border border-stone-300 rounded-xl text-sm focus:outline-coffee-500">
+            <div class="flex justify-end gap-2">
+                <button onclick="closeModal('modalItem')" class="px-4 py-2 text-xs font-semibold text-stone-500">Cancelar</button>
+                <button onclick="saveNewItem()" class="px-4 py-2 text-xs font-semibold bg-coffee-700 text-white rounded-xl">Guardar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript Principal -->
+    <script>
+        const DEFAULT_DATA = {
+            items: [
+                { id: 1, name: 'Bolsa 2.5 kg (Materia Prima)', qty: 10, unit: 'unidades' },
+                { id: 2, name: 'Empaque Lucardih 500g', qty: 50, unit: 'unidades' },
+                { id: 3, name: 'Empaque Lucardih 250g', qty: 50, unit: 'unidades' }
+            ],
+            sales: [],
+            debts: []
+        };
+
+        let appData = JSON.parse(localStorage.getItem('lucardih_app_data')) || DEFAULT_DATA;
+
+        function saveData() {
+            localStorage.setItem('lucardih_app_data', JSON.stringify(appData));
+            renderAll();
+        }
+
+        function renderAll() {
+            renderInventory();
+            renderSales();
+            renderDebts();
+            renderSummary();
+        }
+
+        // --- GESTIÓN DE FRACCIONAMIENTO (BOLSA DE CONSUMO) ---
+        function processConsumableBag(weightInKg) {
+            let consumableItem = appData.items.find(item => item.name === 'Bolsa de Consumo 2.5 kg');
+            
+            if (!consumableItem) {
+                consumableItem = {
+                    id: Date.now(),
+                    name: 'Bolsa de Consumo 2.5 kg',
+                    qty: 2.5,
+                    unit: 'kg'
+                };
+                appData.items.push(consumableItem);
+            }
+
+            if (consumableItem.qty < weightInKg) {
+                let mainBag = appData.items.find(item => item.name.includes('2.5 kg') && item.id !== consumableItem.id);
+                if (mainBag && mainBag.qty > 0) {
+                    mainBag.qty -= 1;
+                    consumableItem.qty += 2.5;
+                }
+            }
+
+            consumableItem.qty = Math.max(0, parseFloat((consumableItem.qty - weightInKg).toFixed(2)));
+        }
+
+        function saveNewItem() {
+            const name = document.getElementById('newItemName').value.trim();
+            const qty = parseFloat(document.getElementById('newItemQty').value) || 0;
+            const unit = document.getElementById('newItemUnit').value.trim() || 'unidades';
+
+            if (name) {
+                appData.items.push({ id: Date.now(), name, qty, unit });
+                saveData();
+                closeModal('modalItem');
+                document.getElementById('newItemName').value = '';
+                document.getElementById('newItemQty').value = '';
+                document.getElementById('newItemUnit').value = '';
+            }
+        }
+
+        function deleteItem(id) {
+            if (confirm('¿Eliminar este ítem del inventario?')) {
+                appData.items = appData.items.filter(item => item.id !== id);
+                saveData();
+            }
+        }
+
+        function editDebt(id) {
+            const debt = appData.debts.find(d => d.id === id);
+            if (!debt) return;
+
+            const newPerson = prompt('Editar Nombre/Proveedor:', debt.person || 'Fer');
+            if (newPerson === null) return;
+
+            const newConcept = prompt('Editar Concepto:', debt.concept);
+            if (newConcept === null) return;
+
+            const newTotal = prompt('Editar Valor Total ($):', debt.total);
+            if (newTotal === null) return;
+
+            const newAbonos = prompt('Editar Abonos Realizados ($):', debt.abonos);
+            if (newAbonos === null) return;
+
+            debt.person = newPerson.trim() || 'Fer';
+            debt.concept = newConcept.trim();
+            debt.total = parseFloat(newTotal) || 0;
+            debt.abonos = parseFloat(newAbonos) || 0;
+
             saveData();
         }
-    }
 
-    document.addEventListener('DOMContentLoaded', () => {
-        renderAll();
-    });
-</script>
+        function renderInventory() {
+            const container = document.getElementById('inventoryList');
+            if (!container) return;
+            if (appData.items.length === 0) {
+                container.innerHTML = `<p class="text-xs text-stone-400 text-center py-2">Sin ítems en el inventario.</p>`;
+                return;
+            }
+            container.innerHTML = appData.items.map(item => `
+                <div class="flex justify-between items-center p-3 bg-stone-50 rounded-xl border border-stone-200">
+                    <div>
+                        <p class="font-bold text-sm text-stone-800">${item.name}</p>
+                        <p class="text-xs text-stone-500">Disponible: <span class="font-semibold text-stone-700">${item.qty} ${item.unit}</span></p>
+                    </div>
+                    <button onclick="deleteItem(${item.id})" class="text-red-500 hover:text-red-700 text-xs font-semibold p-1">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        function renderSales() {
+            // Render de ventas reservado para sección extendida
+        }
+
+        function renderDebts() {
+            const container = document.getElementById('debtsList');
+            if (!container) return;
+            if (appData.debts.length === 0) {
+                container.innerHTML = `<p class="text-xs text-stone-400 text-center py-2">Sin cuentas registradas.</p>`;
+                return;
+            }
+            container.innerHTML = appData.debts.map(d => {
+                const pending = Math.max(0, d.total - d.abonos);
+                return `
+                    <div class="p-3 bg-stone-50 rounded-xl border border-stone-200 flex justify-between items-center">
+                        <div>
+                            <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800 uppercase tracking-wider">${d.person || 'Fer'}</span>
+                            <p class="font-bold text-sm text-stone-800 mt-1">${d.concept}</p>
+                            <p class="text-xs text-stone-500">Total: $${d.total.toLocaleString('es-CO')} | Abono: $${d.abonos.toLocaleString('es-CO')}</p>
+                            <p class="text-xs font-bold text-red-600 mt-0.5">Pendiente: $${pending.toLocaleString('es-CO')}</p>
+                        </div>
+                        <button onclick="editDebt(${d.id})" class="text-blue-600 hover:text-blue-800 text-xs font-bold border border-blue-200 bg-white px-2.5 py-1.5 rounded-lg shadow-sm">
+                            <i class="fa-solid fa-pen mr-1"></i> Editar
+                        </button>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderSummary() {
+            const salesTotal = appData.sales.reduce((acc, s) => acc + (s.total || 0), 0);
+            const debtsTotal = appData.debts.reduce((acc, d) => acc + Math.max(0, d.total - d.abonos), 0);
+
+            document.getElementById('summaryTotalSales').innerText = '$' + salesTotal.toLocaleString('es-CO');
+            document.getElementById('summaryTotalDebts').innerText = '$' + debtsTotal.toLocaleString('es-CO');
+        }
+
+        function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
+        function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+        function exportDataJSON() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(appData, null, 2));
+            const downloadAnchor = document.createElement('a');
+            downloadAnchor.setAttribute("href", dataStr);
+            downloadAnchor.setAttribute("download", `Lucardih_Backup_${new Date().toISOString().slice(0,10)}.json`);
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+        }
+
+        function importDataJSON(e) {
+            const fileReader = new FileReader();
+            fileReader.onload = function (event) {
+                try {
+                    const imported = JSON.parse(event.target.result);
+                    if (imported && imported.items) {
+                        appData = imported;
+                        saveData();
+                        alert('✅ Copia de seguridad restaurada con éxito.');
+                    } else {
+                        alert('❌ El archivo no tiene el formato correcto.');
+                    }
+                } catch (err) {
+                    alert('❌ Error al leer el archivo JSON.');
+                }
+            };
+            if (e.target.files[0]) fileReader.readAsText(e.target.files[0]);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            renderAll();
+        });
+    </script>
 </body>
 </html>
